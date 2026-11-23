@@ -1,0 +1,12 @@
+const express = require('express');
+const mongoose = require('mongoose');
+const {validate} = require('./validate');
+const app = express();
+app.use(express.json({limit:'16kb'}));
+const Task = mongoose.model('Task', new mongoose.Schema({title:{type:String, required:true, maxlength:120},status:{type:String,enum:['todo','doing','done'],default:'todo'}},{timestamps:true}));
+app.get('/api/tasks', async (req,res,next) => {try {res.json(await Task.find().sort({createdAt:-1}).limit(200).lean());} catch(e){next(e)}});
+app.post('/api/tasks', async (req,res,next) => {try {let data; try {data=validate(req.body)} catch(e){return res.status(400).json({error:e.message})} res.status(201).json(await Task.create(data));} catch(e){next(e)}});
+app.patch('/api/tasks/:id', async (req,res,next) => {try {if(!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({error:'Invalid id'}); let data; try {data=validate(req.body,true)} catch(e){return res.status(400).json({error:e.message})} const task=await Task.findByIdAndUpdate(req.params.id,data,{new:true,runValidators:true}); if(!task)return res.status(404).json({error:'Task not found'});res.json(task)} catch(e){next(e)}});
+app.delete('/api/tasks/:id', async (req,res,next) => {try {if(!mongoose.isValidObjectId(req.params.id))return res.status(400).json({error:'Invalid id'}); const task=await Task.findByIdAndDelete(req.params.id); if(!task)return res.status(404).json({error:'Task not found'});res.status(204).end()}catch(e){next(e)}});
+app.use((err,req,res,next)=>{console.error(err.message); res.status(err.status === 400 ? 400 : 500).json({error:err.status === 400 ? 'Invalid JSON' : 'Server error'});});
+module.exports = app;
